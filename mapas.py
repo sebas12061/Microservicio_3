@@ -1,31 +1,16 @@
-from flask import Flask, request, jsonify
+from flask import Flask, jsonify, request
+import requests
 
 app = Flask(__name__)
 
-# Lugares visibles en el mapa (ya aprobados por admin)
-lugares = [
-    {
-        "id": 1,
-        "nombre": "Mirador de los Nevados",
-        "categoria": "naturaleza",
-        "ubicacion": "5.067,-75.517",
-        "popularidad": 5
-    },
-    {
-        "id": 2,
-        "nombre": "Museo de Arte Moderno",
-        "categoria": "cultura",
-        "ubicacion": "4.711,-74.072",
-        "popularidad": 4
-    }
-]
+# Lugares visibles en el mapa (solo aprobados)
+lugares = []
+contador_id = 1
 
-# Lista de solicitudes pendientes (simulación de integración con microservicio Solicitudes)
-solicitudes_pendientes = []
-contador_id = 3
-contador_solicitudes = 1
+# URL del microservicio de solicitudes
+URL_SOLICITUDES = "http://127.0.0.1:5007"
 
-# Ver lugares en el mapa
+# Ver lugares aprobados en el mapa
 @app.route("/mapa", methods=["GET"])
 def ver_mapa():
     return jsonify(lugares), 200
@@ -34,49 +19,39 @@ def ver_mapa():
 @app.route("/mapa/filtrar", methods=["GET"])
 def filtrar_mapa():
     categoria = request.args.get("categoria")
-    filtrados = [l for l in lugares if not categoria or l["categoria"] == categoria]
-    return jsonify(filtrados), 200
+    if categoria:
+        filtrados = [l for l in lugares if l["categoria"] == categoria]
+        return jsonify(filtrados), 200
+    return jsonify(lugares), 200
 
-# Proponer un nuevo lugar
+# Proponer un lugar (se envía a solicitudes.py)
 @app.route("/mapa/proponer", methods=["POST"])
 def proponer_lugar():
-    global contador_solicitudes
     data = request.get_json()
-    solicitud = {
-        "id": contador_solicitudes,
-        "usuario": data.get("usuario"),
+    try:
+        resp = requests.post(f"{URL_SOLICITUDES}/solicitudes", json=data)
+        if resp.status_code == 201:
+            return jsonify({"mensaje": "Solicitud enviada a revisión"}), 201
+        else:
+            return jsonify({"error": "No se pudo enviar la solicitud"}), 500
+    except:
+        return jsonify({"error": "No se pudo conectar al microservicio de solicitudes"}), 500
+
+# Agregar lugar al mapa (llamado desde solicitudes cuando se aprueba)
+@app.route("/mapa/agregar", methods=["POST"])
+def agregar_lugar():
+    global contador_id
+    data = request.get_json()
+    nuevo_lugar = {
+        "id": contador_id,
         "nombre": data.get("nombre"),
         "categoria": data.get("categoria"),
         "ubicacion": data.get("ubicacion"),
-        "estado": "pendiente"  # por defecto
+        "popularidad": 0
     }
-    solicitudes_pendientes.append(solicitud)
-    contador_solicitudes += 1
-    return jsonify({"mensaje": "Lugar propuesto. Pendiente de aprobación por admin.", "solicitud": solicitud}), 201
-
-# Ver solicitudes pendientes (para que el admin luego use Solicitudes)
-@app.route("/mapa/solicitudes", methods=["GET"])
-def ver_solicitudes():
-    return jsonify(solicitudes_pendientes), 200
-
-# Simulación de aprobación (cuando admin aprueba en microservicio Solicitudes
-@app.route("/mapa/aprobar/<int:id>", methods=["POST"])
-def aprobar_lugar(id):
-    global contador_id
-    for solicitud in solicitudes_pendientes:
-        if solicitud["id"] == id:
-            nuevo_lugar = {
-                "id": contador_id,
-                "nombre": solicitud["nombre"],
-                "categoria": solicitud["categoria"],
-                "ubicacion": solicitud["ubicacion"],
-                "popularidad": 0
-            }
-            lugares.append(nuevo_lugar)
-            solicitud["estado"] = "aceptada"
-            contador_id += 1
-            return jsonify({"mensaje": "Lugar aprobado y agregado al mapa", "lugar": nuevo_lugar}), 200
-    return jsonify({"error": "Solicitud no encontrada"}), 404
+    lugares.append(nuevo_lugar)
+    contador_id += 1
+    return jsonify({"mensaje": "Lugar agregado al mapa"}), 201
 
 if __name__ == "__main__":
     app.run(port=5006, debug=True)
