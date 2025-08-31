@@ -30,14 +30,14 @@ contador_solicitudes = 1
 def ver_mapa():
     return jsonify(lugares), 200
 
-# 2. Filtrar lugares
+# Filtrar lugares
 @app.route("/mapa/filtrar", methods=["GET"])
 def filtrar_mapa():
     categoria = request.args.get("categoria")
     filtrados = [l for l in lugares if not categoria or l["categoria"] == categoria]
     return jsonify(filtrados), 200
 
-# 3. Proponer un nuevo lugar
+# Proponer un nuevo lugar
 @app.route("/mapa/proponer", methods=["POST"])
 def proponer_lugar():
     global contador_solicitudes
@@ -54,12 +54,12 @@ def proponer_lugar():
     contador_solicitudes += 1
     return jsonify({"mensaje": "Lugar propuesto. Pendiente de aprobación por admin.", "solicitud": solicitud}), 201
 
-# 4. Ver solicitudes pendientes (para que el admin luego use Solicitudes)
+# Ver solicitudes pendientes (para que el admin luego use Solicitudes)
 @app.route("/mapa/solicitudes", methods=["GET"])
 def ver_solicitudes():
     return jsonify(solicitudes_pendientes), 200
 
-# 5. Simulación de aprobación (cuando admin aprueba en microservicio Solicitudes
+# Simulación de aprobación (cuando admin aprueba en microservicio Solicitudes
 @app.route("/mapa/aprobar/<int:id>", methods=["POST"])
 def aprobar_lugar(id):
     global contador_id
